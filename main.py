@@ -4,6 +4,8 @@ import plotly.express as px
 import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.graph_objs as go
+import networkx as nx
+import dash_cytoscape as cyto
 
 survey_df = pd.read_csv("data.csv")
 # survey_df.dropna(inplace=True)
@@ -39,6 +41,9 @@ sidebar = html.Div(
                 dbc.NavLink("Salary of Developers", href="/page-2", active="exact"),
                 dbc.NavLink("Participants by Country", href="/page-3", active="exact"),
                 dbc.NavLink("Participants by Developer Type", href="/page-4", active="exact"),
+                dbc.NavLink("Education by Gender", href="/page-5", active="exact"),
+                dbc.NavLink("Network", href="/page-6", active="exact"),
+                dbc.NavLink("Salary comparison by gender", href='/page-7', active="exact")
             ],
             vertical=True,
             pills=True,
@@ -258,6 +263,194 @@ def display_dev_count():
     ])
 
 
+def map_salary(x):
+    if x < 10000:
+        return "Low(<10,000)"
+    elif 10000 <= x < 49000:
+        return "Low Med(10k-49k)"
+    elif 49000 <= x < 85000:
+        return "Medium(49k-85k)"
+    elif 85000 <= x < 150000:
+        return "High(85k-150k)"
+    return "Very High > 150k"
+
+
+def map_education_label(x):
+    ['Secondary school (e.g. American high school, German Realschule or Gymnasium, etc.)',
+     'Bachelor’s degree (B.A., B.S., B.Eng., etc.)',
+     'Master’s degree (M.A., M.S., M.Eng., MBA, etc.)',
+     'Other doctoral degree (Ph.D., Ed.D., etc.)',
+     'Some college/university study without earning a degree',
+     'Something else', 'Professional degree (JD, MD, etc.)',
+     'Primary/elementary school', 'Associate degree (A.A., A.S., etc.)']
+    if x == "Other doctoral degree":
+        return x
+    return x.split(" ")[0] + " " + x.split(" ")[1]
+
+
+def display_education_by_gender():
+    degree_salary = survey_df.copy()
+    degree_salary.dropna(inplace=True)
+    degree_salary = degree_salary.groupby(['EdLevel']).agg(
+        {'ConvertedCompYearly': np.mean, 'ResponseId': 'size'}).reset_index()
+    degree_salary['salary_mapper'] = degree_salary['ConvertedCompYearly'].apply(map_salary)
+    degree_salary['ed_mapper'] = degree_salary['EdLevel'].apply(map_education_label)
+    fig = px.density_heatmap(degree_salary, y='ed_mapper', x='salary_mapper', z='ResponseId')
+
+    fig.update_layout(height=600,
+                      title={
+                          'text': "Education by Gender",
+                          'xanchor': 'center',
+                          'yanchor': 'top'}, )
+    return html.Div([
+        dcc.Graph(
+            id='dev_type_counts',
+            figure=fig
+        )
+    ])
+
+
+def make_edge(x, y, text, width):
+    return go.Scatter(x=x,
+                      y=y,
+                      line=dict(width=width,
+                                color='cornflowerblue'),
+                      hoverinfo='text',
+                      text=([text]),
+                      mode='lines')
+
+
+def display_network_diagram():
+    interest_df = survey_df.copy()
+    interest_df.dropna(inplace=True)
+
+    platform_df = interest_df.copy()
+
+    platform_df = platform_df[['PlatformHaveWorkedWith', 'PlatformWantToWorkWith']]
+
+    platform_df["PlatformHaveWorkedWith"] = platform_df["PlatformHaveWorkedWith"].str.split(";")
+    platform_df = platform_df.explode("PlatformHaveWorkedWith").reset_index(drop=True)
+
+    platform_df["PlatformWantToWorkWith"] = platform_df["PlatformWantToWorkWith"].str.split(";")
+    platform_df = platform_df.explode("PlatformWantToWorkWith").reset_index(drop=True)
+
+    G = nx.from_pandas_edgelist(platform_df, 'PlatformHaveWorkedWith', 'PlatformWantToWorkWith')
+
+    pos = nx.spring_layout(G)
+
+    for n, p in pos.items():
+        G.nodes[n]['pos'] = p
+
+    edge_trace = go.Scatter(
+        x=[],
+        y=[],
+        line=dict(width=0.5, color='#888'),
+        hoverinfo='none',
+        mode='lines')
+
+    for edge in G.edges():
+        x0, y0 = G.nodes[edge[0]]['pos']
+        x1, y1 = G.nodes[edge[1]]['pos']
+        edge_trace['x'] += tuple([x0, x1, None])
+        edge_trace['y'] += tuple([y0, y1, None])
+
+    node_trace = go.Scatter(
+        x=[],
+        y=[],
+        text=[],
+        mode='markers',
+        hoverinfo='text',
+        marker=dict(
+            showscale=True,
+            colorscale='RdBu',
+            reversescale=True,
+            color=[],
+            size=15,
+            colorbar=dict(
+                thickness=10,
+                title='Node Connections',
+                xanchor='left',
+                titleside='right'
+            ),
+            line=dict(width=0)))
+
+    for node in G.nodes():
+        x, y = G.nodes[node]['pos']
+        node_trace['x'] += tuple([x])
+        node_trace['y'] += tuple([y])
+        # node_trace['text'] += tuple(['<b>' + node + '</b>'])
+
+    for node, adjacencies in enumerate(G.adjacency()):
+        node_trace['marker']['color'] += tuple([len(adjacencies[1])])
+        node_info = adjacencies[0] + ' # of connections: ' + str(len(adjacencies[1]))
+        node_trace['text'] += tuple([node_info])
+
+    fig = go.Figure(data=[edge_trace, node_trace],
+                    layout=go.Layout(
+                        title='<br>AT&T network connections',
+                        titlefont=dict(size=16),
+                        showlegend=False,
+                        hovermode='closest',
+                        margin=dict(b=20, l=5, r=5, t=40),
+                        # annotations=[dict(
+                        #     text="No. of connections",
+                        #     showarrow=False,
+                        #     xref="paper", yref="paper")],
+                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)))
+
+    return html.Div([
+        dcc.Graph(
+            id='dev_type_counts',
+            figure=fig
+        )
+    ])
+
+
+def map_gender(x):
+    return x if x in ['Man', 'Woman'] else "Prefer not to say"
+
+
+def map_experience(x):
+    if x == 'Less than 1 year':
+        return 1
+    elif x == 'More than 50 years':
+        return 50
+    return x
+
+
+def display_salary_by_gender():
+    salary_by_gender = survey_df.copy()
+    salary_by_gender['Gender'] = salary_by_gender['Gender'].apply(map_gender)
+    salary_by_gender['YearsCodePro'] = salary_by_gender['YearsCodePro'].apply(map_experience)
+    salary_by_gender['YearsCodePro'] = salary_by_gender['YearsCodePro'].fillna("0")
+    salary_by_gender['YearsCodePro'] = salary_by_gender['YearsCodePro'].astype('int')
+    salary_by_gender = salary_by_gender[
+        (salary_by_gender['YearsCodePro'] <= 30) & (salary_by_gender['YearsCodePro'] > 1)]
+    # salary_by_gender = salary_by_gender[salary_by_gender['ConvertedCompYearly'] <= 300000]
+    salary_by_gender = salary_by_gender[salary_by_gender['Gender'] != 'Prefer not to say']
+    # salary_by_gender['ConvertedCompYearly'].fillna(salary_by_gender['ConvertedCompYearly'].mean())
+    # salary_by_gender['YearsCodePro'].fillna(salary_by_gender['YearsCodePro'].mean())
+    salary_by_gender = salary_by_gender.interpolate(method="akima")
+    # salary_by_gender.dropna(inplace=True)
+    new_df = salary_by_gender.groupby(['Gender', 'YearsCodePro']).agg(
+        {'YearsCodePro': 'mean', 'ConvertedCompYearly': 'median'})
+    new_df['Gender'] = new_df.index.get_level_values(0)
+    fig = px.line(new_df, x="YearsCodePro", y="ConvertedCompYearly", color='Gender')
+
+    fig.update_layout(title={'text': 'Salary Comparison by Gender'},
+                      xaxis_title="Average Years of Professional Experience",
+                      yaxis_title="Median Yearly Salary(USD)",
+                      legend_title="Gender")
+
+    return html.Div([
+        dcc.Graph(
+            id='salary_by_gender',
+            figure=fig
+        )
+    ])
+
+
 @app.callback(Output("page-content", "children"), [Input("url", "pathname")])
 def render_page_content(pathname):
     if pathname == "/":
@@ -270,6 +463,12 @@ def render_page_content(pathname):
         return display_participants()
     elif pathname == '/page-4':
         return display_dev_count()
+    elif pathname == "/page-5":
+        return display_education_by_gender()
+    elif pathname == "/page-6":
+        return display_network_diagram()
+    elif pathname == '/page-7':
+        return display_salary_by_gender()
     return dbc.Jumbotron(
         [
             html.H1("404: Not found", className="text-danger"),
