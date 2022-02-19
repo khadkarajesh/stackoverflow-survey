@@ -420,7 +420,7 @@ def display_network_diagram():
 
     fig = go.Figure(data=[edge_trace, node_trace],
                     layout=go.Layout(
-                        title='<br>AT&T network connections',
+                        title='Cloud Platform worked and wanted to work in future',
                         titlefont=dict(size=16),
                         showlegend=False,
                         hovermode='closest',
