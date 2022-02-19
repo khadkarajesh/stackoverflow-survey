@@ -460,12 +460,8 @@ def display_salary_by_gender():
     salary_by_gender['YearsCodePro'] = salary_by_gender['YearsCodePro'].astype('int')
     salary_by_gender = salary_by_gender[
         (salary_by_gender['YearsCodePro'] <= 30) & (salary_by_gender['YearsCodePro'] > 1)]
-    # salary_by_gender = salary_by_gender[salary_by_gender['ConvertedCompYearly'] <= 300000]
     salary_by_gender = salary_by_gender[salary_by_gender['Gender'] != 'Prefer not to say']
-    # salary_by_gender['ConvertedCompYearly'].fillna(salary_by_gender['ConvertedCompYearly'].mean())
-    # salary_by_gender['YearsCodePro'].fillna(salary_by_gender['YearsCodePro'].mean())
     salary_by_gender = salary_by_gender.interpolate(method="akima")
-    # salary_by_gender.dropna(inplace=True)
     new_df = salary_by_gender.groupby(['Gender', 'YearsCodePro']).agg(
         {'YearsCodePro': 'mean', 'ConvertedCompYearly': 'median'})
     new_df['Gender'] = new_df.index.get_level_values(0)
