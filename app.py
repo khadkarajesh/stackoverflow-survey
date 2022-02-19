@@ -1,11 +1,10 @@
-import numpy as np
-from dash import Dash, html, dcc, Output, Input
-import plotly.express as px
 import dash_bootstrap_components as dbc
-import pandas as pd
-import plotly.graph_objs as go
 import networkx as nx
-from matplotlib import pyplot as plt
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objs as go
+from dash import Dash, html, dcc, Output, Input
 
 survey_df = pd.read_csv("data.csv")
 
@@ -371,12 +370,7 @@ def display_network_diagram():
 
     G = nx.from_pandas_edgelist(platform_df, 'PlatformHaveWorkedWith', 'PlatformWantToWorkWith')
 
-    plt.figure(figsize=(10, 8))
-    nx.draw_shell(G, with_labels=True)
-
-    # pos = nx.spring_layout(G)
     pos = nx.circular_layout(G)
-    print(pos)
 
     for n, p in pos.items():
         G.nodes[n]['pos'] = p
