@@ -5,10 +5,8 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.graph_objs as go
 import networkx as nx
-import dash_cytoscape as cyto
 
 survey_df = pd.read_csv("data.csv")
-# survey_df.dropna(inplace=True)
 
 SIDEBAR_STYLE = {
     "position": "fixed",
@@ -43,7 +41,8 @@ sidebar = html.Div(
                 dbc.NavLink("Participants by Developer Type", href="/page-4", active="exact"),
                 dbc.NavLink("Education by Gender", href="/page-5", active="exact"),
                 dbc.NavLink("Network", href="/page-6", active="exact"),
-                dbc.NavLink("Salary comparison by gender", href='/page-7', active="exact")
+                dbc.NavLink("Salary comparison by gender", href='/page-7', active="exact"),
+                dbc.NavLink("Problem Resolution Method", href='/page-8', active="exact")
             ],
             vertical=True,
             pills=True,
@@ -71,7 +70,9 @@ def assign_value_to_age_range(x):
         return 5
     elif x == '45 - 54 years':
         return 6
-    return 7
+    elif x == '55 - 64 years':
+        return 7
+    return 8
 
 
 def get_first_code_age():
@@ -87,12 +88,13 @@ def get_first_code_age():
                  y="Age1stCode",
                  x="percentage",
                  text=age_first_code_grouped['percentage'],
+                 color='Age1stCode',
                  orientation='h')
 
     fig.update_layout(xaxis_title="Percentage",
-                      yaxis_title="Age",
+                      yaxis_title="Age Group",
                       title="First line of code written age percentage",
-                      legend_title="Age vs Percentage")
+                      legend_title="Age Group")
 
     return html.Div([
         dcc.Graph(
@@ -165,7 +167,7 @@ def display_salary():
     salary_exp_df.rename(columns={"ResponseId": "Participants"}, inplace=True)
     salary_exp_df['YearsCodePro'] = salary_exp_df['YearsCodePro'].apply(lambda x: round(x, 2))
     salary_exp_df['dev_type_mapper'] = salary_exp_df['DevType'].apply(map_dev_type)
-
+    print(f"columns: {salary_exp_df.columns}")
     fig = px.scatter(salary_exp_df,
                      x="YearsCodePro",
                      y="ConvertedCompYearly",
@@ -174,9 +176,14 @@ def display_salary():
                      labels={
                          "YearsCodePro": "Average Years of Professional Experience",
                          "ConvertedCompYearly": "Median Yearly Salary(USD)",
-                     })
+                     }, custom_data=['DevType'])
 
-    fig.update_traces(textposition='top center')
+    fig.update_traces(textposition='top center',
+                      hovertemplate="<br>".join([
+                          "Average Years of Experience: %{x}",
+                          "Median Salary: %{y}",
+                          "Developer Type: %{customdata[0]}"
+                      ]))
     fig.update_xaxes(nticks=10)
     fig.update_layout(
         height=1000,
@@ -288,6 +295,19 @@ def map_education_label(x):
     return x.split(" ")[0] + " " + x.split(" ")[1]
 
 
+def set_salary_range_priority(x):
+    if x == 'Low(<10,000)':
+        return 0
+    elif x == 'Low Med(10k-49k)':
+        return 1
+    elif x == 'Medium(49k-85k)':
+        return 2
+    elif x == 'High(85k-150k)':
+        return 3
+    elif x == 'Very High > 150k':
+        return 4
+
+
 def display_education_by_gender():
     degree_salary = survey_df.copy()
     degree_salary.dropna(inplace=True)
@@ -295,13 +315,26 @@ def display_education_by_gender():
         {'ConvertedCompYearly': np.mean, 'ResponseId': 'size'}).reset_index()
     degree_salary['salary_mapper'] = degree_salary['ConvertedCompYearly'].apply(map_salary)
     degree_salary['ed_mapper'] = degree_salary['EdLevel'].apply(map_education_label)
-    fig = px.density_heatmap(degree_salary, y='ed_mapper', x='salary_mapper', z='ResponseId')
+    degree_salary['salary_mapper_order'] = degree_salary['salary_mapper'].apply(set_salary_range_priority)
+    degree_salary = degree_salary.sort_values(by=['salary_mapper_order'])
+
+    fig = px.density_heatmap(degree_salary,
+                             y='ed_mapper',
+                             x='salary_mapper',
+                             z='ResponseId')
 
     fig.update_layout(height=600,
                       title={
-                          'text': "Education by Gender",
-                          'xanchor': 'center',
-                          'yanchor': 'top'}, )
+                          'text': "Salary By Education"},
+                      xaxis={
+                          'title': "Salary Range"
+                      },
+                      yaxis={
+                          'title': 'Highest Level of Education'
+                      },
+                      coloraxis_colorbar=dict(
+                          title="Number of Participants",
+                      ))
     return html.Div([
         dcc.Graph(
             id='dev_type_counts',
@@ -451,10 +484,190 @@ def display_salary_by_gender():
     ])
 
 
+def display_home_screen():
+    dashboard_df = survey_df.copy()
+
+    learned_code_df = dashboard_df.copy()
+    learned_code_df["LearnCode"] = learned_code_df["LearnCode"].str.split(";")
+
+    learned_code_df = learned_code_df.explode("LearnCode").reset_index(drop=True)
+    learned_code_df = learned_code_df.groupby('LearnCode').size().reset_index(name='size')
+
+    learned_code_fig = px.histogram(learned_code_df, x='LearnCode', y='size', color='LearnCode')
+    learned_code_fig.update_layout(
+        xaxis={'categoryorder': 'total descending', 'showticklabels': False, 'title': 'Learned Code'},
+        yaxis={'title': 'Number of Participants'},
+        legend_title='Source')
+
+    popular_programming_df = dashboard_df.copy()
+    popular_programming_df["LanguageHaveWorkedWith"] = popular_programming_df["LanguageHaveWorkedWith"].str.split(";")
+    popular_programming_df = popular_programming_df.explode("LanguageHaveWorkedWith").reset_index(drop=True)
+    popular_programming_df = popular_programming_df.groupby('LanguageHaveWorkedWith').size().reset_index(name='size')
+
+    popular_programming_df = popular_programming_df.sort_values(by=['size'], ascending=False)
+    # popular_programming_df = popular_programming_df.head(10)
+
+    popular_programming_fig = px.bar(popular_programming_df, y='LanguageHaveWorkedWith', x='size', orientation='h')
+    popular_programming_fig.update_layout(xaxis={'title': 'Number of Participants worked'},
+                                          yaxis={'title': '',
+                                                 'categoryorder': 'total ascending'},
+                                          legend_title='Source')
+
+    popular_database_df = dashboard_df.copy()
+
+    popular_database_df["DatabaseHaveWorkedWith"] = popular_database_df["DatabaseHaveWorkedWith"].str.split(";")
+    popular_database_df = popular_database_df.explode("DatabaseHaveWorkedWith").reset_index(drop=True)
+    popular_database_df = popular_database_df.groupby('DatabaseHaveWorkedWith').size().reset_index(name='size')
+
+    popular_database_df = popular_database_df.sort_values(by=['size'], ascending=False)
+    # popular_database_df = popular_database_df.head(10)
+
+    popular_database_fig = px.bar(popular_database_df, y='DatabaseHaveWorkedWith', x='size', orientation='h')
+    popular_database_fig.update_layout(width=1000, xaxis={'title': 'Number of Participants worked'},
+                                       yaxis={'title': '',
+                                              'categoryorder': 'total ascending'},
+                                       legend_title='Source')
+
+    popular_framework_df = dashboard_df.copy()
+    popular_framework_df["WebframeHaveWorkedWith"] = popular_framework_df["WebframeHaveWorkedWith"].str.split(";")
+    popular_framework_df = popular_framework_df.explode("WebframeHaveWorkedWith").reset_index(drop=True)
+    popular_framework_df = popular_framework_df.groupby('WebframeHaveWorkedWith').size().reset_index(name='size')
+
+    popular_framework_df = popular_framework_df.sort_values(by=['size'], ascending=False)
+    # popular_framework_df = popular_framework_df.head(10)
+
+    popular_framework_fig = px.bar(popular_framework_df, y='WebframeHaveWorkedWith', x='size', orientation='h')
+    popular_framework_fig.update_layout(width=1000, xaxis={'title': 'Number of Participants worked'},
+                                        yaxis={'title': '',
+                                               'categoryorder': 'total ascending'},
+                                        legend_title='Source')
+
+    popular_tools_df = dashboard_df.copy()
+    popular_tools_df["ToolsTechHaveWorkedWith"] = popular_tools_df["ToolsTechHaveWorkedWith"].str.split(";")
+    popular_tools_df = popular_tools_df.explode("ToolsTechHaveWorkedWith").reset_index(drop=True)
+    popular_tools_df = popular_tools_df.groupby('ToolsTechHaveWorkedWith').size().reset_index(name='size')
+
+    popular_tools_df = popular_tools_df.sort_values(by=['size'], ascending=False)
+    # popular_tools_df = popular_tools_df.head(10)
+
+    popular_tools_fig = px.bar(popular_tools_df, y='ToolsTechHaveWorkedWith', x='size', orientation='h')
+    popular_tools_fig.update_layout(width=1000, xaxis={'title': 'Number of Participants worked'},
+                                    yaxis={'title': '',
+                                           'categoryorder': 'total ascending'},
+                                    legend_title='Source')
+
+    popular_ide_df = dashboard_df.copy()
+    popular_ide_df["NEWCollabToolsHaveWorkedWith"] = popular_ide_df["NEWCollabToolsHaveWorkedWith"].str.split(";")
+    popular_ide_df = popular_ide_df.explode("NEWCollabToolsHaveWorkedWith").reset_index(drop=True)
+    popular_ide_df = popular_ide_df.groupby('NEWCollabToolsHaveWorkedWith').size().reset_index(name='size')
+
+    popular_ide_df = popular_ide_df.sort_values(by=['size'], ascending=False)
+    # popular_tools_df = popular_tools_df.head(10)
+
+    popular_ide_fig = px.bar(popular_ide_df, y='NEWCollabToolsHaveWorkedWith', x='size', orientation='h')
+    popular_ide_fig.update_layout(width=1000, xaxis={'title': 'Number of Participants'},
+                                  yaxis={'title': '',
+                                         'categoryorder': 'total ascending'},
+                                  legend_title='Source')
+
+    return html.Div([
+        html.Div([
+            html.H5("Learning How to Code"),
+            dcc.Graph(
+                id='learned_code_fig',
+                figure=learned_code_fig
+            )
+        ], className='row'),
+        html.Div([
+            html.H5("Programming, Scripting and Markup Languages"),
+            dcc.Graph(
+                id='popular_programming_fig',
+                figure=popular_programming_fig
+            )
+        ], className='column'),
+        html.Div([
+            html.H5("Databases"),
+            dcc.Graph(
+                id='popular_database_fig',
+                figure=popular_database_fig
+            )
+        ], className='row'),
+        html.Div([
+            html.H5("Frameworks"),
+            dcc.Graph(
+                id='popular_framework_fig',
+                figure=popular_framework_fig
+            )
+        ], className='row'),
+        html.Div([
+            html.H5("Used Tools and Technologies"),
+            dcc.Graph(
+                id='popular_tools_fig',
+                figure=popular_tools_fig
+            )
+        ], className='row'),
+        html.Div([
+            html.H5("IDE used for Development"),
+            dcc.Graph(
+                id='popular_tools_fig',
+                figure=popular_ide_fig
+            )
+        ], className='row')
+    ], className='column')
+
+
+def display_resolution_method():
+    resolution_df = survey_df.copy()
+
+    resolution_df["NEWStuck"] = resolution_df["NEWStuck"].str.split(";")
+    resolution_df = resolution_df.explode("NEWStuck").reset_index(drop=True)
+
+    resolution_df_man = resolution_df[resolution_df['Gender'] == 'Man']
+    resolution_df_women = resolution_df[resolution_df['Gender'] == 'Woman']
+
+    resolution_df_man = resolution_df_man.groupby('NEWStuck').size().reset_index(name='size')
+    resolution_df_woman = resolution_df_women.groupby('NEWStuck').size().reset_index(name='size')
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        y=resolution_df_man['NEWStuck'].values,
+        x=resolution_df_man['size'].values,
+        name='Man',
+        orientation='h',
+        marker=dict(
+            color='rgba(58, 71, 80, 0.6)',
+            line=dict(color='rgba(58, 71, 80, 1.0)', width=3)
+        )
+    ))
+    fig.add_trace(go.Bar(
+        y=resolution_df_woman['NEWStuck'].values,
+        x=resolution_df_woman['size'].values,
+        name='Women',
+        orientation='h',
+
+        marker=dict(
+            color='rgba(246, 78, 139, 0.6)',
+            line=dict(color='rgba(246, 78, 139, 1.0)', width=3)
+        )
+    ))
+
+    fig.update_layout(title={'text': "Followed approach when stuck on some problem"},
+                      barmode='stack',
+                      yaxis={'categoryorder': 'total ascending'},
+                      xaxis={'title': 'Number of Participants'})
+
+    return html.Div([
+        dcc.Graph(
+            id='when_you_stuck',
+            figure=fig
+        )
+    ])
+
+
 @app.callback(Output("page-content", "children"), [Input("url", "pathname")])
 def render_page_content(pathname):
     if pathname == "/":
-        return html.P("This is the content of the home page!")
+        return display_home_screen()
     elif pathname == "/page-1":
         return get_first_code_age()
     elif pathname == "/page-2":
@@ -469,6 +682,8 @@ def render_page_content(pathname):
         return display_network_diagram()
     elif pathname == '/page-7':
         return display_salary_by_gender()
+    elif pathname == '/page-8':
+        return display_resolution_method()
     return dbc.Jumbotron(
         [
             html.H1("404: Not found", className="text-danger"),
