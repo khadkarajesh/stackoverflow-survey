@@ -5,4 +5,4 @@ This application is built to explore dash and plotly. It consists the data explo
 Data is taken from the stackoverflow website. It can be found over this <a href="https://insights.stackoverflow.com/survey">Link</a>
 
 ### Demo
-![Demo](demo.gif)
+[![Youtube Video](https://img.youtube.com/vi/U3JEOvW0vQE/0.jpg)](https://www.youtube.com/watch?v=U3JEOvW0vQE)
