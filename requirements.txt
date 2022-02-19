@@ -1,1 +1,3 @@
-dash==2.1.0
+dash
+plotly
+gunicorn

@@ -26,6 +26,7 @@ CONTENT_STYLE = {
 }
 
 app = Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
+server = app.server
 sidebar = html.Div(
     [
         html.H2("Stackoverflow Survey", className="display-12"),
