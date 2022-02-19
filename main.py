@@ -5,6 +5,7 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.graph_objs as go
 import networkx as nx
+from matplotlib import pyplot as plt
 
 survey_df = pd.read_csv("data.csv")
 
@@ -35,13 +36,13 @@ sidebar = html.Div(
         dbc.Nav(
             [
                 dbc.NavLink("Home", href="/", active="exact"),
-                dbc.NavLink("First line code written", href="/page-1", active="exact"),
-                dbc.NavLink("Salary of Developers", href="/page-2", active="exact"),
+                dbc.NavLink("Salary of Developers", href="/page-1", active="exact"),
+                dbc.NavLink("First line code written", href="/page-2", active="exact"),
                 dbc.NavLink("Participants by Country", href="/page-3", active="exact"),
-                dbc.NavLink("Participants by Developer Type", href="/page-4", active="exact"),
+                dbc.NavLink("Participants by Developer", href="/page-4", active="exact"),
                 dbc.NavLink("Education by Gender", href="/page-5", active="exact"),
-                dbc.NavLink("Network", href="/page-6", active="exact"),
-                dbc.NavLink("Salary comparison by gender", href='/page-7', active="exact"),
+                dbc.NavLink("Interested Cloud Platform", href="/page-6", active="exact"),
+                dbc.NavLink("Gender vs Salary", href='/page-7', active="exact"),
                 dbc.NavLink("Problem Resolution Method", href='/page-8', active="exact")
             ],
             vertical=True,
@@ -369,7 +370,12 @@ def display_network_diagram():
 
     G = nx.from_pandas_edgelist(platform_df, 'PlatformHaveWorkedWith', 'PlatformWantToWorkWith')
 
-    pos = nx.spring_layout(G)
+    plt.figure(figsize=(10, 8))
+    nx.draw_shell(G, with_labels=True)
+
+    # pos = nx.spring_layout(G)
+    pos = nx.circular_layout(G)
+    print(pos)
 
     for n, p in pos.items():
         G.nodes[n]['pos'] = p
@@ -390,8 +396,8 @@ def display_network_diagram():
     node_trace = go.Scatter(
         x=[],
         y=[],
-        text=[],
-        mode='markers',
+        text=list(pos.keys()),
+        mode='markers+text',
         hoverinfo='text',
         marker=dict(
             showscale=True,
@@ -411,7 +417,6 @@ def display_network_diagram():
         x, y = G.nodes[node]['pos']
         node_trace['x'] += tuple([x])
         node_trace['y'] += tuple([y])
-        # node_trace['text'] += tuple(['<b>' + node + '</b>'])
 
     for node, adjacencies in enumerate(G.adjacency()):
         node_trace['marker']['color'] += tuple([len(adjacencies[1])])
@@ -669,9 +674,9 @@ def render_page_content(pathname):
     if pathname == "/":
         return display_home_screen()
     elif pathname == "/page-1":
-        return get_first_code_age()
-    elif pathname == "/page-2":
         return display_salary()
+    elif pathname == "/page-2":
+        return get_first_code_age()
     elif pathname == '/page-3':
         return display_participants()
     elif pathname == '/page-4':
@@ -684,7 +689,7 @@ def render_page_content(pathname):
         return display_salary_by_gender()
     elif pathname == '/page-8':
         return display_resolution_method()
-    return dbc.Jumbotron(
+    return html.Div(
         [
             html.H1("404: Not found", className="text-danger"),
             html.Hr(),
