@@ -1,0 +1,4 @@
+6
+Tatooine-Dagobah:6, Dagobah-Endor:4, Dagobah-Hoth:1, Hoth-Endor:1, Tatooine-Hoth:6
+7
+Hoth:6, Hoth:7, Hoth:8
